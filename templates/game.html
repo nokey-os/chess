@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-6 text-center">
+        <h5 class="text-info mb-3">
+            {{ game.white_player.username }} vs
+            {% if game.black_player %}{{ game.black_player.username }}{% else %}Бот{% endif %}
+            <span class="badge {% if game.game_type == 'bot' %}bg-secondary{% else %}bg-info text-dark{% endif %} ms-2">
+                {{ 'Бот' if game.game_type == 'bot' else 'Человек' }}
+            </span>
+        </h5>
+        <div id="board" class="mx-auto" style="max-width:400px"></div>
+        <div id="status" class="mt-3 fs-5"></div>
+        <div id="game-result" class="mt-2"></div>
+        <div class="mt-3 d-flex justify-content-center gap-2">
+            <button id="resign-btn" class="btn btn-danger" onclick="resign()">Сдаться</button>
+            <div id="new-game-btn" style="display:none;">
+                <a href="{{ url_for('index') }}" class="btn btn-primary">Новая игра</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+<script>
+var fen = {{ fen|tojson }};
+var gameType = {{ game.game_type|tojson }};
+var game = new Chess(fen);
+
+var board = Chessboard('board', {
+    position: game.fen(),
+    draggable: true,
+    pieceTheme: '/static/img/chesspieces/wikipedia/{piece}.png',
+    onDrop: function (source, target) {
+        var move = game.move({from: source, to: target, promotion: 'q'});
+        if (move === null) return 'snapback';
+        board.position(game.fen());
+
+        $.ajax({
+            url: '/move',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({from: source, to: target, promotion: 'q'}),
+            success: function (data) {
+                game.load(data.fen);
+                board.position(game.fen());
+                updateStatus(data);
+                if (data.game_over) gameOver(data);
+            },
+            error: function (xhr) {
+                game.undo();
+                board.position(game.fen());
+                updateStatus({check: game.in_check()});
+                var msg = xhr.responseJSON && xhr.responseJSON.error;
+                if (msg) alert('Ошибка: ' + msg);
+            }
+        });
+    }
+});
+
+function updateStatus(data) {
+    var s = '';
+    if (data.check) s += '♟ Шах! ';
+    var turn = game.turn() === 'w' ? 'Белых' : 'Чёрных';
+    s += 'Ход ' + turn;
+    $('#status').text(s);
+}
+
+function resign() {
+    if (!confirm('Вы уверены, что хотите сдаться?')) return;
+    $.post('/resign', {}, function (data) {
+        game.load(data.fen);
+        board.position(game.fen());
+        gameOver(data);
+    });
+}
+
+function gameOver(data) {
+    var msg = '';
+    if (data.winner === 'w') msg = '\u2654 Победа белых!';
+    else if (data.winner === 'b') msg = '\u265A Победа чёрных!';
+    else msg = '\u2655 Ничья!';
+    $('#status').text(msg);
+    $('#game-result').html('<div class="alert alert-info fs-5">' + msg + '</div>');
+    $('#resign-btn').hide();
+    $('#new-game-btn').show();
+}
+
+board.position(game.fen());
+updateStatus({check: game.in_check()});
+</script>
+{% endblock %}
