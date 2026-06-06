@@ -2,6 +2,8 @@
 
 Шахматная доска с drag-and-drop, двумя режимами игры и авторизацией по имени (без пароля).
 
+<img width="1908" height="807" alt="image" src="https://github.com/user-attachments/assets/5c0bddb3-9d50-4929-94d1-ea8eb38cf87c" />
+
 ## Возможности
 
 - **Игра с ботом** — случайные легальные ходы
